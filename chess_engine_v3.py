@@ -66,6 +66,11 @@ def evaluate_position(board):
 
     material = 0
     piece_square_score = 0
+    activity_score = 0
+    king_safety_score = 0
+
+    # Central squares for activity bonus
+    central_squares = [chess.D4, chess.D5, chess.E4, chess.E5]
 
     for square in chess.SQUARES:
         piece = board.piece_at(square)
@@ -75,14 +80,32 @@ def evaluate_position(board):
         pst = PST_TABLES[piece.piece_type]
         square_idx = square if piece.color == chess.WHITE else chess.square_mirror(square)
         pst_value = pst[square_idx]
+
+        # Activity bonus for knights and bishops in the center
+        activity = 0
+        if piece.piece_type in [chess.KNIGHT, chess.BISHOP] and square in central_squares:
+            activity = 30  # Bonus for central control
+
         if piece.color == chess.WHITE:
             material += value
             piece_square_score += pst_value
+            activity_score += activity
         else:
             material -= value
             piece_square_score -= pst_value
+            activity_score -= activity
 
-    total_score = material + piece_square_score
+    # King safety: Penalize king on starting square (e1/e8) after move 5
+    move_number = board.fullmove_number
+    if move_number >= 5:
+        white_king = board.king(chess.WHITE)
+        black_king = board.king(chess.BLACK)
+        if white_king == chess.E1:  # White king still on e1
+            king_safety_score -= 50
+        if black_king == chess.E8:  # Black king still on e8
+            king_safety_score += 50
+
+    total_score = material + piece_square_score + activity_score + king_safety_score
     return total_score if board.turn == chess.WHITE else -total_score
 
 def alpha_beta(board, depth, alpha, beta, maximizing_player):
@@ -117,7 +140,7 @@ def alpha_beta(board, depth, alpha, beta, maximizing_player):
                 break
         return min_eval
 
-def find_best_move(board, depth=3, time_limit=2.0):
+def find_best_move(board, depth=4, time_limit=2.0):
     """Find the best move using a board copy."""
     start_time = time.time()
     search_board = board.copy()
@@ -179,11 +202,10 @@ def play_game():
             print("Engine thinking...")
             print(f"Board FEN before engine move: {board.fen()}")
             print(f"Turn: {'White' if board.turn == chess.WHITE else 'Black'}")
-            move = find_best_move(board, depth=5, time_limit=3.0)
+            move = find_best_move(board, depth=4, time_limit=2.0)
             if move:
                 legal_moves = list(board.legal_moves)
                 if move in legal_moves:
-                    # Display move before pushing
                     move_san = board.san(move)
                     board.push(move)
                     print(f"Engine move: {move_san}")
